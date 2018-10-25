@@ -1,2 +1,9 @@
-# chaterl
-basic chat on Erlang 
+chat
+=====
+
+An OTP application
+
+Build
+-----
+
+    $ rebar3 compile
