@@ -10,6 +10,7 @@
 
 %% API
 -export([start_link/0]).
+-export([register_client/1]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
@@ -17,11 +18,25 @@
 
 -define(SERVER, ?MODULE).
 
--record(state, {}).
+-record(state, {
+          queue :: list()
+         }).
 
 %%%===================================================================
 %%% API
 %%%===================================================================
+
+%%--------------------------------------------------------------------
+%% @doc
+%% When client connects, we get his Pid and:
+%% 0. if not another ClientPid in queue, save Pid
+%% 1. if we have ClientPid in queue, so they can chat, clear queue
+%% 2. if we have offline ClientPid in queue, clear queue, save Pid
+%% @spec
+%% @end
+%%--------------------------------------------------------------------
+register_client(Pid) when is_pid(Pid) ->
+    gen_server:cast(?SERVER, {register_client, Pid}).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -50,7 +65,7 @@ start_link() ->
 %%--------------------------------------------------------------------
 init([]) ->
     process_flag(trap_exit, true),
-    {ok, #state{}}.
+    {ok, #state{queue = []}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -80,6 +95,28 @@ handle_call(_Request, _From, State) ->
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
+handle_cast({register_client, Pid}, #state{queue=[]} = State) ->
+    NewQueue = [Pid],
+    {noreply, State#state{queue = NewQueue}};
+
+handle_cast({register_client, Pid}, #state{queue=[Pid]} = State) ->
+    {noreply, State};
+
+handle_cast({register_client, Pid0},
+            #state{queue=[Pid1]} = State) when is_pid(Pid1) ->
+    NewQueue = [],
+
+    %% send them pids & signal, that they can chat
+    [ Sender ! {chat, Receiver} || {Sender, Receiver} <- [{Pid0, Pid1},
+                                                          {Pid1, Pid0}]],
+
+    {noreply, State#state{queue = NewQueue}};
+
+handle_cast({register_client, Pid},
+            #state{queue=[WaiterPid]} = State) when not is_pid(WaiterPid) ->
+    NewQueue = [Pid],
+    {noreply, State#state{queue = NewQueue}};
+
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
