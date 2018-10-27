@@ -18,6 +18,8 @@
 
 -define(SERVER, ?MODULE).
 
+-include("log.hrl").
+
 -record(state, {
           queue :: list()
          }).
@@ -81,7 +83,8 @@ init([]) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_call(_Request, _From, State) ->
+handle_call(Request, _From, State) ->
+    ?ERR("Unhandled call ~p", [Request]),
     Reply = ok,
     {reply, Reply, State}.
 
@@ -97,27 +100,39 @@ handle_call(_Request, _From, State) ->
 %%--------------------------------------------------------------------
 handle_cast({register_client, Pid}, #state{queue=[]} = State) ->
     NewQueue = [Pid],
+    ?INFO("Got empty Q, now: ~p", [NewQueue]),
     {noreply, State#state{queue = NewQueue}};
 
 handle_cast({register_client, Pid}, #state{queue=[Pid]} = State) ->
+    ?ERR("Got the same pid in Q: ~p", [Pid]),
     {noreply, State};
 
 handle_cast({register_client, Pid0},
             #state{queue=[Pid1]} = State) when is_pid(Pid1) ->
-    NewQueue = [],
 
-    %% send them pids & signal, that they can chat
-    [ Sender ! {chat, Receiver} || {Sender, Receiver} <- [{Pid0, Pid1},
-                                                          {Pid1, Pid0}]],
+    NewQ = case process_info(Pid1, status) of
+               undefined ->
+                   ?INFO("Old pid ~p is off, save new ~p", [Pid1, Pid0]),
+                   [Pid0];
+               {status, _} ->
+                   ?INFO("Create chat room for ~p and ~p", [Pid0, Pid1]),
 
-    {noreply, State#state{queue = NewQueue}};
+                   %% send them pids & signal, that they can chat
+                   [ Sender ! {chat, Receiver} ||
+                       {Sender, Receiver} <- [{Pid0, Pid1},
+                                              {Pid1, Pid0}]],
+                   []
+           end,
+
+    {noreply, State#state{queue = NewQ}};
 
 handle_cast({register_client, Pid},
             #state{queue=[WaiterPid]} = State) when not is_pid(WaiterPid) ->
     NewQueue = [Pid],
     {noreply, State#state{queue = NewQueue}};
 
-handle_cast(_Msg, State) ->
+handle_cast(Msg, State) ->
+    ?ERR("Unhandled cast ~p", [Msg]),
     {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -130,7 +145,8 @@ handle_cast(_Msg, State) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_info(_Info, State) ->
+handle_info(Info, State) ->
+    ?ERR("Unhandled info ~p", [Info]),
     {noreply, State}.
 
 %%--------------------------------------------------------------------
