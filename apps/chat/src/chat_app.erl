@@ -17,7 +17,11 @@
 
 start(_StartType, _StartArgs) ->
     Dispatch = cowboy_router:compile([
-        {'_', [{"/", chat_handler, []}]}
+        {'_', [
+               {"/ws/",   chat_handler,  []},
+               {"/",      cowboy_static, {priv_file, chat, "static/index.html"}},
+               {"/[...]", cowboy_static, {priv_dir,  chat, "static"}}
+              ]}
     ]),
 
     {ok, _} = cowboy:start_clear(chat_ws,
