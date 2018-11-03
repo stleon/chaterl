@@ -19,7 +19,7 @@
          }).
 
 init(Req, State) ->
-    Timeout = 30 * 1000,
+    Timeout = 60 * 1000,
     {cowboy_websocket, Req, State, #{idle_timeout => Timeout}}.
 
 
@@ -37,8 +37,13 @@ websocket_handle({text, Msg}, #state{receiver = Pid} = State) when is_pid(Pid) -
     Pid ! {chat, Msg},
     {ok, State};
 
+%%--------------------------------------------------------------------
+%% @doc
+%% Incoming message ignoring, when no receiver
+%% @end
+%%--------------------------------------------------------------------
 websocket_handle({text, Msg}, State) ->
-    {reply, {text, << "said: ", Msg/binary >>}, State};
+    {ok, State};
 
 websocket_handle(_Data, State) ->
     {ok, State}.
