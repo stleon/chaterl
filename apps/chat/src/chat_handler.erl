@@ -26,15 +26,33 @@ init(Req, State) ->
 websocket_init(_State) ->
     ?INFO("New connection process: ~p", [self()]),
     chat_roulette:register_client(self()),
-    {reply, {text, <<"Hello, world!">>}, #state{}}.
+
+    Msg   = {msg, {text, <<"Hello, world!">>}},
+    Reply = {binary, bert:encode(Msg)},
+
+    {reply, Reply, #state{}}.
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Incoming message in room sends to receiver
+%% Incoming message sends to receiver (from A to B)
 %% @end
 %%--------------------------------------------------------------------
-websocket_handle({text, Msg}, #state{receiver = Pid} = State) when is_pid(Pid) ->
-    Pid ! {chat, Msg},
+websocket_handle({text, Msg}, #state{receiver = Pid} = State) when is_pid(Pid),
+                                                                   is_binary(Msg) ->
+
+    Send = fun(Receiver, Message) ->
+                   Receiver ! {chat, Message}
+           end,
+
+    case bert:decode(Msg) of
+        {msg, {text, Text}} when is_bitstring(Text) ->
+            Send(Pid, Msg);
+        {signal, <<"typing">>} ->
+            Send(Pid, Msg);
+        _ ->
+            ok
+    end,
+
     {ok, State};
 
 %%--------------------------------------------------------------------
@@ -42,28 +60,36 @@ websocket_handle({text, Msg}, #state{receiver = Pid} = State) when is_pid(Pid) -
 %% Incoming message ignoring, when no receiver
 %% @end
 %%--------------------------------------------------------------------
-websocket_handle({text, Msg}, State) ->
+websocket_handle({text, _Msg}, State) ->
     {ok, State};
 
 websocket_handle(_Data, State) ->
     {ok, State}.
 
-
+%%--------------------------------------------------------------------
+%% @doc
+%% Send channel_created signal, link processes (A & B)
+%% @end
+%%--------------------------------------------------------------------
 websocket_info({chat, Pid}, State) when is_pid(Pid) ->
-    ?INFO("Got another process ~p in room", [Pid]),
+    ?INFO("Got another process ~p in channel", [Pid]),
     link(Pid),
-    {reply, {text, <<"Got companion!">>}, State#state{receiver = Pid}};
+
+    Signal = {signal, <<"channel_created">>},
+    Reply  = {binary, bert:encode(Signal)},
+
+    {reply, Reply, State#state{receiver = Pid}};
 
 %%--------------------------------------------------------------------
 %% @doc
-%% Receiver get message and send it to client
+%% Receiver (B) get message and send it to client through ws
 %% @end
 %%--------------------------------------------------------------------
 websocket_info({chat, Msg}, State) when is_binary(Msg) ->
-    {reply, {text, << "said: ", Msg/binary >>}, State};
+    {reply, {binary, Msg}, State};
 
 websocket_info({'EXIT', Pid, normal}, State) when is_pid(Pid) ->
-    ?INFO("Room is closed, pid ~p went offline", [Pid]),
+    ?INFO("Channel is closed, pid ~p went offline", [Pid]),
     {stop, State};
 
 websocket_info(Info, State) ->
