@@ -12,6 +12,7 @@
 -export([websocket_info/2]).
 -export([terminate/3]).
 
+-include("common.hrl").
 -include("log.hrl").
 
 -record(state, {
@@ -19,8 +20,8 @@
          }).
 
 init(Req, State) ->
-    Timeout = 60 * 1000,
-    {cowboy_websocket, Req, State, #{idle_timeout => Timeout}}.
+    {cowboy_websocket, Req, State, #{idle_timeout   => ?IDLE_TIMEOUT,
+                                     max_frame_size => ?MAX_FRAME_SIZE}}.
 
 
 websocket_init(_State) ->

@@ -11,6 +11,8 @@
 %% Application callbacks
 -export([start/2, stop/1]).
 
+-include("common.hrl").
+
 %%====================================================================
 %% API
 %%====================================================================
@@ -18,9 +20,10 @@
 start(_StartType, _StartArgs) ->
     Dispatch = cowboy_router:compile([
         {'_', [
-               {"/ws/",   chat_handler,  []},
-               {"/",      cowboy_static, {priv_file, chat, "static/index.html"}},
-               {"/[...]", cowboy_static, {priv_dir,  chat, "static"}}
+               {"/ws/",             chat_handler,  []},
+               {"/public_channel/", chat_public_handler, []},
+               {"/",                cowboy_static, {priv_file, chat, "static/index.html"}},
+               {"/[...]",           cowboy_static, {priv_dir,  chat, "static"}}
               ]}
     ]),
 
@@ -28,6 +31,8 @@ start(_StartType, _StartArgs) ->
         [{port, 8080}],
         #{env => #{dispatch => Dispatch}}
     ),
+
+    ok = pg2:create(?PUBLIC_CHANNEL),
 
     chat_sup:start_link().
 
