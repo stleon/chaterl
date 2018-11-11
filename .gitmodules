@@ -1,3 +1,6 @@
 [submodule "apps/chat/priv/bert.erl"]
 	path = apps/chat/priv/bert.erl
 	url = git@github.com:mojombo/bert.erl.git
+[submodule "apps/chat/priv/static"]
+	path = apps/chat/priv/static
+	url = git@github.com:stleon/chatweb.git
