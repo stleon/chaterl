@@ -28,18 +28,19 @@ websocket_init(_State) ->
     ?INFO("New connection process: ~p", [self()]),
     chat_roulette:register_client(self()),
 
-    Msg   = {msg, {text, <<"Hello, world!">>}},
-    Reply = {binary, bert:encode(Msg)},
+    %% Msg   = {msg, {text, <<"Hello, world!">>}},
+    %% Reply = {binary, bert:encode(Msg)},
+    %% {reply, Reply, #state{}}.
 
-    {reply, Reply, #state{}}.
+    {ok, #state{}}.
 
 %%--------------------------------------------------------------------
 %% @doc
 %% Incoming message sends to receiver (from A to B)
 %% @end
 %%--------------------------------------------------------------------
-websocket_handle({text, Msg}, #state{receiver = Pid} = State) when is_pid(Pid),
-                                                                   is_binary(Msg) ->
+websocket_handle({binary, Msg}, #state{receiver = Pid} = State) when is_pid(Pid),
+                                                                     is_binary(Msg) ->
 
     Send = fun(Receiver, Message) ->
                    Receiver ! {chat, Message}
