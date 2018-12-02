@@ -19,10 +19,38 @@
           receiver  :: pid()
          }).
 
-init(Req, State) ->
-    {cowboy_websocket, Req, State, #{idle_timeout   => ?IDLE_TIMEOUT,
-                                     max_frame_size => ?MAX_FRAME_SIZE}}.
+%%--------------------------------------------------------------------
+%% @doc
+%% Get recapcha token and check it in google. if ok -- init ws
+%% @end
+%%--------------------------------------------------------------------
+init(#{qs := <<"token=", Token/bitstring>>} = Req, State) ->
+    {ok, SecretList} = application:get_env(chat, recapcha_secret),
+    Secret = list_to_bitstring(SecretList),
 
+    Method = post,
+    Url = "https://www.google.com/recaptcha/api/siteverify",
+    Headers = [],
+    ContentType = "application/x-www-form-urlencoded; charset=utf-8",
+    Body = <<"secret=", Secret/bitstring, "&response=", Token/bitstring>>,
+
+    Request = {Url, Headers, ContentType, Body},
+    HTTPOpt = [],
+    Options = [],
+
+    {ok, Result} = httpc:request(Method, Request, HTTPOpt, Options),
+    {{"HTTP/1.1", 200, "OK"}, _Headers, RBody} = Result,
+
+    case jiffy:decode(RBody, [return_maps]) of
+        #{<<"success">> := true} ->
+            {cowboy_websocket, Req, State, #{idle_timeout   => ?IDLE_TIMEOUT,
+                                             max_frame_size => ?MAX_FRAME_SIZE}};
+        _ ->
+            {ok, Req, State}
+    end;
+
+init(Req, State) ->
+    {ok, Req, State}.
 
 websocket_init(_State) ->
     ?INFO("New connection process: ~p", [self()]),
