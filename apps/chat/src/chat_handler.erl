@@ -47,12 +47,12 @@ websocket_handle({binary, Msg}, #state{receiver = Pid} = State) when is_pid(Pid)
            end,
 
     case bert:decode(Msg) of
-        {msg, {text, Text}} when is_bitstring(Text) ->
+        {msg, {text, String}} when is_list(String) ->
             Send(Pid, Msg);
         {signal, <<"typing">>} ->
             Send(Pid, Msg);
-        _ ->
-            ok
+        X ->
+            ?WRN("decode error ~p", [X])
     end,
 
     {ok, State};
