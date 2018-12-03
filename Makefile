@@ -1,3 +1,6 @@
+dev-install:
+	cp config/sys.config config/sys.config.devel
+
 compile:
 	./rebar3 compile
 
