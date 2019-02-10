@@ -15,6 +15,16 @@
 -include("common.hrl").
 -include("log.hrl").
 
+
+-define(CONNECTION_OPTS, #{idle_timeout   => ?IDLE_TIMEOUT,
+                           max_frame_size => ?MAX_FRAME_SIZE}
+).
+
+-define(REQ_OPTS,  #{domain  => "127.0.0.1",
+                     path    => "/",
+                     max_age => ?SESSION_COOKIE_EXPIRE div 1000 }
+).
+
 -record(state, {
           receiver  :: pid()
          }).
@@ -25,32 +35,49 @@
 %% @end
 %%--------------------------------------------------------------------
 init(#{qs := <<"token=", Token/bitstring>>} = Req, State) ->
-    {ok, SecretList} = application:get_env(chat, recapcha_secret),
-    Secret = list_to_bitstring(SecretList),
 
-    Method = post,
-    Url = "https://www.google.com/recaptcha/api/siteverify",
-    Headers = [],
-    ContentType = "application/x-www-form-urlencoded; charset=utf-8",
-    Body = <<"secret=", Secret/bitstring, "&response=", Token/bitstring>>,
+    ResponseBody = check_captcha(Token),
 
-    Request = {Url, Headers, ContentType, Body},
-    HTTPOpt = [],
-    Options = [],
-
-    {ok, Result} = httpc:request(Method, Request, HTTPOpt, Options),
-    {{"HTTP/1.1", 200, "OK"}, _Headers, RBody} = Result,
-
-    case jiffy:decode(RBody, [return_maps]) of
+    case jiffy:decode(ResponseBody, [return_maps]) of
         #{<<"success">> := true} ->
-            {cowboy_websocket, Req, State, #{idle_timeout   => ?IDLE_TIMEOUT,
-                                             max_frame_size => ?MAX_FRAME_SIZE}};
+
+            Cookies = cowboy_req:parse_cookies(Req),
+
+            case lists:keyfind(?SESSION_COOKIE_NAME, 1, Cookies) of
+                false ->
+                    ?DBG("Req without session.."),
+
+                    Session   = chat_storage_session:create(),
+                    SessionID = erlang:integer_to_binary(Session#?CHAT_SESSION.session_id),
+                    ?INFO("Create session (ID ~p)", [SessionID]),
+
+                    Req1 = cowboy_req:set_resp_cookie(?SESSION_COOKIE_NAME, SessionID,
+                                                      Req, ?REQ_OPTS),
+                    {cowboy_websocket, Req1, State, ?CONNECTION_OPTS};
+
+
+                {_, SessionID} when is_binary(SessionID) ->
+                    check_session(Req, SessionID, State)
+            end;
         _ ->
             {ok, Req, State}
     end;
 
+%%--------------------------------------------------------------------
+%% @doc Request without token, so we check session cookie
+%% @spec
+%% @end
+%%--------------------------------------------------------------------
 init(Req, State) ->
-    {ok, Req, State}.
+    Cookies = cowboy_req:parse_cookies(Req),
+    case lists:keyfind(?SESSION_COOKIE_NAME, 1, Cookies) of
+        false ->
+            %% no token, no cookie..
+            {ok, Req, State};
+
+        {_, SessionID} when is_binary(SessionID) ->
+            check_session(Req, SessionID, State)
+    end.
 
 websocket_init(_State) ->
     ?INFO("New connection process: ~p", [self()]),
@@ -130,3 +157,52 @@ websocket_info(Info, State) ->
 terminate(Reason, _Req, _State) ->
     ?INFO("Terminate with reason: ~p", [Reason]),
     ok.
+
+
+%%--------------------------------------------------------------------
+%% @doc Send token to google, if 200 return json in response body
+%% @spec
+%% @end
+%%--------------------------------------------------------------------
+check_captcha(Token) when is_bitstring(Token) ->
+
+    {ok, SecretList} = application:get_env(chat, recapcha_secret),
+    Secret           = list_to_bitstring(SecretList),
+
+    Method      = post,
+    Url         = "https://www.google.com/recaptcha/api/siteverify",
+    Headers     = [],
+    ContentType = "application/x-www-form-urlencoded; charset=utf-8",
+    Body        = <<"secret=", Secret/bitstring, "&response=", Token/bitstring>>,
+
+    Request = {Url, Headers, ContentType, Body},
+    HTTPOpt = [],
+    Options = [],
+
+    {ok, Result} = httpc:request(Method, Request, HTTPOpt, Options),
+    {{"HTTP/1.1", 200, "OK"}, _Headers, ResponseBody} = Result,
+    ResponseBody.
+
+
+%%--------------------------------------------------------------------
+%% @doc check session in storage. Stop or init ws
+%% @spec
+%% @end
+%%--------------------------------------------------------------------
+check_session(Req, SessionID, State) when is_binary(SessionID) ->
+    SessionID1 = list_to_integer(binary_to_list(SessionID)),
+    ?DBG("Got session (ID ~p)", [SessionID1]),
+
+    case chat_storage_session:exists(SessionID1) of
+        true ->
+            {cowboy_websocket, Req, State, ?CONNECTION_OPTS};
+        false ->
+            ?ERR("Unknown sesison (ID ~p)", [SessionID1]),
+            ReqOpts1 = maps:update(max_age, 0, ?REQ_OPTS),
+            Req1     = cowboy_req:set_resp_cookie(?SESSION_COOKIE_NAME,
+                                                  SessionID, Req, ReqOpts1),
+            Req2 = cowboy_req:reply(400, Req1),
+
+            %% @todo some clients do not delete cookies
+            {ok, Req2, State}
+    end.

@@ -44,8 +44,9 @@ init([]) ->
                    period    => 5},
 
     ChildSpecs = [
-                  ?CHILD(chat,           worker),
-                  ?CHILD(chat_roulette,  worker)
+                  ?CHILD(chat,                 worker),
+                  ?CHILD(chat_roulette,        worker),
+                  ?CHILD(chat_storage_session, worker)
                  ],
     {ok, {SupFlags, ChildSpecs}}.
 

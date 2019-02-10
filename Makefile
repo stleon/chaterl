@@ -1,6 +1,3 @@
-dev-install:
-	cp config/sys.config config/sys.config.devel
-
 compile:
 	./rebar3 compile
 
@@ -9,3 +6,6 @@ release:
 
 run:
 	./rebar3 run
+
+dev-install:
+	cp config/sys.config config/sys.config.devel

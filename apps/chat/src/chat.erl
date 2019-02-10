@@ -17,6 +17,7 @@
 
 -define(SERVER, ?MODULE).
 
+-include("common.hrl").
 -include("log.hrl").
 
 -record(state, {}).
