@@ -11,6 +11,11 @@
    ]},
   {env,[]},
   {modules, []},
+  {start_phases, [
+                  {init, []},
+                  {admin, []},
+                  {oper, []}
+                 ]},
 
   {maintainers, []},
   {licenses, ["MIT"]},
