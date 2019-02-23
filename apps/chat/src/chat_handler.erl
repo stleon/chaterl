@@ -20,11 +20,6 @@
                            max_frame_size => ?MAX_FRAME_SIZE}
 ).
 
--define(REQ_OPTS,  #{domain  => "127.0.0.1",
-                     path    => "/",
-                     max_age => ?SESSION_COOKIE_EXPIRE div 1000 }
-).
-
 -record(state, {
           receiver  :: pid()
          }).
@@ -52,7 +47,7 @@ init(#{qs := <<"token=", Token/bitstring>>} = Req, State) ->
                     ?INFO("Create session (ID ~p)", [SessionID]),
 
                     Req1 = cowboy_req:set_resp_cookie(?SESSION_COOKIE_NAME, SessionID,
-                                                      Req, ?REQ_OPTS),
+                                                      Req, req_opts()),
                     {cowboy_websocket, Req1, State, ?CONNECTION_OPTS};
 
 
@@ -159,6 +154,15 @@ terminate(Reason, _Req, _State) ->
     ok.
 
 
+%%%===================================================================
+%%% Internal functions
+%%%===================================================================
+req_opts() ->
+    {ok, Domain} = application:get_env(chat, domain),
+    #{domain  => Domain,
+      path    => "/",
+      max_age => ?SESSION_COOKIE_EXPIRE div 1000 }.
+
 %%--------------------------------------------------------------------
 %% @doc Send token to google, if 200 return json in response body
 %% @spec
@@ -198,7 +202,7 @@ check_session(Req, SessionID, State) when is_binary(SessionID) ->
             {cowboy_websocket, Req, State, ?CONNECTION_OPTS};
         false ->
             ?ERR("Unknown sesison (ID ~p)", [SessionID1]),
-            ReqOpts1 = maps:update(max_age, 0, ?REQ_OPTS),
+            ReqOpts1 = maps:update(max_age, 0, req_opts()),
             Req1     = cowboy_req:set_resp_cookie(?SESSION_COOKIE_NAME,
                                                   SessionID, Req, ReqOpts1),
             Req2 = cowboy_req:reply(400, Req1),

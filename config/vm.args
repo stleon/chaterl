@@ -1,6 +1,7 @@
--sname chat
+-name ${NODE_NAME}
 
--setcookie chat_cookie
+-setcookie ${COOKIE}
 
+## Enable kernel poll and a few async threads
 +K true
-+A30
++A 5

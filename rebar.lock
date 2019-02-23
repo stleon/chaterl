@@ -1,7 +1,7 @@
 {"1.1.0",
 [{<<"bert">>,
   {git,"git://github.com/stleon/bert.erl.git",
-       {ref,"076205498d0bc134731a16ba94ed25f1bc5cbc8a"}},
+       {ref,"63b38d33b64fc8743a1bab3915333a5a39c1b863"}},
   0},
  {<<"cowboy">>,
   {git,"git://github.com/ninenines/cowboy.git",
