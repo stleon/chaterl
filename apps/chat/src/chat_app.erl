@@ -88,7 +88,7 @@ start_phase(oper, _StartType, _Args) ->
    Dispatch = cowboy_router:compile([
         {'_', [
                {"/ws/",             chat_handler,  []},
-               {"/public_channel/", chat_public_handler, []},
+               %% {"/public_channel/", chat_public_handler, []},
                {"/",                cowboy_static, {priv_file, chat, "static/index.html"}},
                {"/[...]",           cowboy_static, {priv_dir,  chat, "static"}}
               ]}
