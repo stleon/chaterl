@@ -99,7 +99,8 @@ websocket_handle({binary, Msg}, #state{receiver = Pid} = State) when is_pid(Pid)
     case bert:decode(Msg) of
         {msg, {text, String}} when is_list(String) ->
             Send(Pid, Msg);
-        {signal, <<"typing">>} ->
+        {signal, 1, Bool} when Bool == true; Bool == false -> %% typing
+            ?DBG("TYPING ~p", [Bool]),
             Send(Pid, Msg);
         X ->
             ?WRN("decode error ~p", [X])
@@ -127,7 +128,7 @@ websocket_info({chat, Pid}, State) when is_pid(Pid) ->
     ?INFO("Got another process ~p in channel", [Pid]),
     link(Pid),
 
-    Signal = {signal, <<"channel_created">>},
+    Signal = {signal, 0}, %% channel_created
     Reply  = {binary, bert:encode(Signal)},
 
     {reply, Reply, State#state{receiver = Pid}};
