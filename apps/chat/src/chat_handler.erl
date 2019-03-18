@@ -99,6 +99,8 @@ websocket_handle({binary, Msg}, #state{receiver = Pid} = State) when is_pid(Pid)
     case bert:decode(Msg) of
         {msg, {text, String}} when is_list(String) ->
             Send(Pid, Msg);
+        {msg, {img, Img}} when is_binary(Img) ->
+            Send(Pid, Msg);
         {signal, 1, Bool} when Bool == true; Bool == false -> %% typing
             ?DBG("TYPING ~p", [Bool]),
             Send(Pid, Msg);
